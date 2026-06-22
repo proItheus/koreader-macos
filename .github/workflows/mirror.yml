@@ -115,11 +115,7 @@ jobs:
           rm -rf artifacts dist
           mkdir -p artifacts dist
 
-          gh run download "$RUN_ID" -R koreader/koreader \
-            -p "*ARM64*"  -D artifacts/arm64
-
-          gh run download "$RUN_ID" -R koreader/koreader \
-            -p "*x86-64*" -D artifacts/x86_64
+          gh run download "$RUN_ID" -R koreader/koreader -D artifacts
 
           echo '=== downloaded files ==='
           find artifacts -type f
@@ -131,19 +127,25 @@ jobs:
         run: |
           set -ex
 
-          for arch in arm64 x86_64; do
-            SRC=$(echo artifacts/${arch}/*.7z)
-            DST="dist/koreader-macos-${arch}.7z"
-            cp "$SRC" "$DST"
+          find artifacts -name '*.7z' | while read -r src; do
+            dir=$(dirname "$src")
+            case "$dir" in
+              *[Aa][Rr][Mm]64*) arch=arm64 ;;
+              *x86[-_]64* | *X86[-_]64*) arch=x86_64 ;;
+              *) continue ;;
+            esac
+
+            dst="dist/koreader-macos-${arch}.7z"
+            cp "$src" "$dst"
 
             NIX_HASH=$(python3 -c "
           import hashlib, base64
           h = hashlib.sha256()
-          with open('${DST}', 'rb') as f:
+          with open('${dst}', 'rb') as f:
               while b := f.read(8192): h.update(b)
           print('sha256-' + base64.b64encode(h.digest()).decode())
           ")
-            CASK_HASH=$(shasum -a 256 "$DST" | cut -d' ' -f1)
+            CASK_HASH=$(shasum -a 256 "$dst" | cut -d' ' -f1)
 
             echo "${arch}_nix_hash=${NIX_HASH}"   >> "$GITHUB_OUTPUT"
             echo "${arch}_cask_hash=${CASK_HASH}" >> "$GITHUB_OUTPUT"
