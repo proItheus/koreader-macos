@@ -122,18 +122,26 @@ jobs:
           rm -rf artifacts dist
           mkdir -p artifacts dist
 
-          ARCHIVE_URL="repos/koreader/koreader/actions/runs/${RUN_ID}/artifacts"
+          gh api "repos/koreader/koreader/actions/runs/${RUN_ID}/artifacts" \
+            --jq '.artifacts[] | select(.name | test("macos"; "i")) | {id, name}' \
+            --paginate \
+          | jq -c '.' \
+          | while read -r art; do
+            id=$(echo "$art" | jq -r .id)
+            name=$(echo "$art" | jq -r .name)
+            case "$name" in
+              *[Aa][Rr][Mm]64*) arch=arm64 ;;
+              *x86[-_]64* | *X86[-_]64*) arch=x86_64 ;;
+              *) echo "  skipping unknown arch: ${name}"; continue ;;
+            esac
 
-          gh api "$ARCHIVE_URL" \
-            --jq '.artifacts[] | select(.name | test("macos"; "i")) | .id' \
-          | while read -r id; do
-            echo "→ downloading artifact ${id}..."
+            dst="artifacts/koreader-macos-${arch}.7z"
+            echo "→ downloading ${arch} (artifact ${id})"
             curl -fsSL --retry 3 --retry-delay 5 \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               "https://api.github.com/repos/koreader/koreader/actions/artifacts/${id}/zip" \
-              -o "/tmp/artifact-${id}.zip"
-            unzip -qo "/tmp/artifact-${id}.zip" -d artifacts/
-            rm -f "/tmp/artifact-${id}.zip"
+              -o "$dst"
+            echo "  → ${dst} ($(stat -f%z "$dst" 2>/dev/null || stat -c%s "$dst") bytes)"
           done
 
           echo '=== downloaded files ==='
@@ -141,29 +149,25 @@ jobs:
 
       # ── rename & hash ────────────────────────────────────────────────
 
-      - name: Rename and hash
+      - name: Hash
         id: hash
         run: |
           set -ex
 
-          find artifacts -name '*.7z' | while read -r src; do
-            case "$src" in
-              *[Aa][Rr][Mm]64*) arch=arm64 ;;
-              *x86[-_]64* | *X86[-_]64*) arch=x86_64 ;;
-              *) continue ;;
-            esac
+          for arch in arm64 x86_64; do
+            src="artifacts/koreader-macos-${arch}.7z"
+            [ -f "$src" ] || { echo "WARNING: ${src} not found — skipping"; continue; }
 
-            dst="dist/koreader-macos-${arch}.7z"
-            cp "$src" "$dst"
+            cp "$src" "dist/koreader-macos-${arch}.7z"
 
             NIX_HASH=$(python3 -c "
           import hashlib, base64
           h = hashlib.sha256()
-          with open('${dst}', 'rb') as f:
+          with open('dist/koreader-macos-${arch}.7z', 'rb') as f:
               while b := f.read(8192): h.update(b)
           print('sha256-' + base64.b64encode(h.digest()).decode())
           ")
-            CASK_HASH=$(shasum -a 256 "$dst" | cut -d' ' -f1)
+            CASK_HASH=$(shasum -a 256 "dist/koreader-macos-${arch}.7z" | cut -d' ' -f1)
 
             echo "${arch}_nix_hash=${NIX_HASH}"   >> "$GITHUB_OUTPUT"
             echo "${arch}_cask_hash=${CASK_HASH}" >> "$GITHUB_OUTPUT"
