@@ -22,13 +22,24 @@ jobs:
       contents: write
       actions: write
 
+    env:
+      GH_TOKEN: ${{ secrets.KOREADER_PAT }}
+
     steps:
+      - name: Validate KOREADER_PAT secret
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::KOREADER_PAT secret is not set."
+            echo "Create a fine-grained PAT with 'actions: read' on koreader/koreader,"
+            echo "then add it as a repository secret named KOREADER_PAT."
+            exit 1
+          fi
+          gh auth status
+
       # ── resolve upstream CI run ──────────────────────────────────────
 
       - name: Resolve CI run
         id: resolve
-        env:
-          GH_TOKEN: ${{ secrets.KOREADER_PAT }}
         run: |
           MODE="${{ inputs.mode }}"
           TAG="${{ inputs.tag }}"
@@ -59,8 +70,6 @@ jobs:
       # ── check artifact expiry ────────────────────────────────────────
 
       - name: Check artifact expiry
-        env:
-          GH_TOKEN: ${{ secrets.KOREADER_PAT }}
         run: |
           RUN_ID="${{ steps.resolve.outputs.run_id }}"
 
@@ -100,8 +109,6 @@ jobs:
       # ── download artifacts ───────────────────────────────────────────
 
       - name: Download artifacts
-        env:
-          GH_TOKEN: ${{ secrets.KOREADER_PAT }}
         run: |
           RUN_ID="${{ steps.resolve.outputs.run_id }}"
 
