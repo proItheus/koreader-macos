@@ -56,6 +56,34 @@ jobs:
           fi
           echo "run_id=${RUN_ID}" >> "$GITHUB_OUTPUT"
 
+      # ── check artifact expiry ────────────────────────────────────────
+
+      - name: Check artifact expiry
+        env:
+          GH_TOKEN: ${{ secrets.KOREADER_PAT }}
+        run: |
+          RUN_ID="${{ steps.resolve.outputs.run_id }}"
+
+          STATS=$(gh api "repos/koreader/koreader/actions/runs/${RUN_ID}/artifacts" \
+            --jq '[.artifacts[] | select(.name | test("macos"; "i"))] |
+                  { total: length, expired: [.[] | select(.expired == true)] | length }')
+
+          TOTAL=$(echo "$STATS" | jq .total)
+          EXPIRED=$(echo "$STATS" | jq .expired)
+
+          echo "macOS artifacts: ${TOTAL} total, ${EXPIRED} expired"
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "ERROR: no macOS artifacts found for run ${RUN_ID}" >&2
+            exit 1
+          fi
+
+          if [ "$EXPIRED" -eq "$TOTAL" ]; then
+            echo "ERROR: all ${TOTAL} macOS artifacts have expired (GitHub Actions retains them 90 days)."
+            echo "The tag may be too old to mirror — rebuild from source or use a nightly snapshot."
+            exit 1
+          fi
+
       # ── skip already-mirrored tagged releases ────────────────────────
 
       - name: Skip if already mirrored (tagged)

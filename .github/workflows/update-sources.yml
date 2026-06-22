@@ -97,6 +97,19 @@ jobs:
           echo '=== updated cask ==='
           cat Casks/koreader.rb
 
+      # ── update Casks/koreader-nightly.rb ─────────────────────────────
+
+      - name: Update nightly cask URL
+        if: inputs.mode == 'nightly'
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          sed -i "s|https://github.com/[^/]*/[^/]*/releases|https://github.com/${REPO}/releases|" Casks/koreader-nightly.rb
+          sed -i "s|github.com/[^/]*/\"|github.com/${REPO%%/*}/\"|" Casks/koreader-nightly.rb
+
+          echo '=== updated nightly cask ==='
+          cat Casks/koreader-nightly.rb
+
       # ── commit & push ────────────────────────────────────────────────
 
       - name: Commit changes
@@ -111,7 +124,7 @@ jobs:
           git config user.name  github-actions
           git config user.email github-actions@github.com
 
-          git add sources.nix Casks/koreader.rb flake.lock 2>/dev/null || true
+          git add sources.nix Casks/koreader.rb Casks/koreader-nightly.rb flake.lock 2>/dev/null || true
           git commit -m "mirror: KOReader ${TAG}"
 
           git pull --rebase origin HEAD 2>/dev/null || true
