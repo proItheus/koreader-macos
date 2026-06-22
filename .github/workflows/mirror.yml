@@ -29,6 +29,8 @@ jobs:
       GH_TOKEN: ${{ secrets.KOREADER_PAT }}
 
     steps:
+      - uses: actions/checkout@v6
+
       - name: Validate KOREADER_PAT secret
         run: |
           if [ -z "$GH_TOKEN" ]; then
