@@ -11,7 +11,7 @@ cask "koreader" do
   desc "Document viewer for PDF, EPUB, DJVU, FB2, CBZ"
   homepage "https://koreader.rocks/"
 
-  depends_on cask: "keka"
+  depends_on formula: "p7zip"
 
   postflight do
     system_command "/usr/bin/xattr",
